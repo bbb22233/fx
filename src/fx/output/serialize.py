@@ -39,13 +39,14 @@ def symbol_summary(m: SymbolMetrics) -> dict:
     return out
 
 
-def collapse_by_symbol(keys, metrics: dict) -> list:
+def collapse_by_symbol(keys, metrics: Optional[dict] = None) -> list:
     """把清单里的 key（可能是 ``exchange:symbol``）按币种去重，合并各交易所。
 
     返回 ``[{"symbol", "exchanges"}]``，保持首见顺序。单所(exchange=None)时
     exchanges 为 ``[None]``，展示层退化为裸 symbol（最干净）。用 metrics 里携带的
     symbol/exchange 字段还原，避免对含 ``:`` 的 symbol 做歧义字符串切分。
     """
+    metrics = metrics or {}
     out: dict = {}
     for k in keys:
         m = metrics.get(k) or {}

@@ -64,6 +64,35 @@ def test_compute_alerts_new_entries():
     assert "u_none" not in alerts
 
 
+def test_compute_alerts_dedup_across_exchanges():
+    """同币同轮在多所新进 → 合并为一条（带交易所标签）。"""
+    metrics = {
+        "binance:BTC/USDT:USDT": {"symbol": "BTC/USDT:USDT", "exchange": "binance"},
+        "okx:BTC/USDT:USDT": {"symbol": "BTC/USDT:USDT", "exchange": "okx"},
+    }
+    new = {"top": ["binance:BTC/USDT:USDT", "okx:BTC/USDT:USDT"],
+           "bottom": [], "squeeze": [], "watch": []}
+    subs = [("u_top", "top"), ("u_sym", "BTC/USDT:USDT")]
+    alerts = compute_alerts(None, new, subs, metrics=metrics)
+    assert alerts["u_top"] == ["🆕 BTC/USDT:USDT [binance, okx] 新进【top】清单"]
+    assert alerts["u_sym"] == ["🆕 BTC/USDT:USDT [binance, okx] 新进【top】清单"]
+
+
+def test_compute_alerts_coin_level_no_repeat_when_another_exchange_joins():
+    """币已在 binance 顶部，本轮 okx 才进 → 币级判定不再重复告警。"""
+    prev_metrics = {"binance:BTC/USDT:USDT": {"symbol": "BTC/USDT:USDT", "exchange": "binance"}}
+    metrics = {
+        "binance:BTC/USDT:USDT": {"symbol": "BTC/USDT:USDT", "exchange": "binance"},
+        "okx:BTC/USDT:USDT": {"symbol": "BTC/USDT:USDT", "exchange": "okx"},
+    }
+    prev = {"top": ["binance:BTC/USDT:USDT"], "bottom": [], "squeeze": [], "watch": []}
+    new = {"top": ["binance:BTC/USDT:USDT", "okx:BTC/USDT:USDT"],
+           "bottom": [], "squeeze": [], "watch": []}
+    alerts = compute_alerts(prev, new, [("u_top", "top")],
+                            metrics=metrics, prev_metrics=prev_metrics)
+    assert "u_top" not in alerts        # 币种本就在清单里，不再报
+
+
 # ----------------------------- ScanService -----------------------------
 def _make_df(n, tf, now):
     step = timeframe_seconds(tf)

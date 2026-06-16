@@ -11,7 +11,8 @@ from typing import Dict, List, Optional, Union
 from .config import Settings
 from .data.base import DataProvider
 from .data.cache import KlineCache
-from .output.serialize import result_summary, symbol_summary
+from .output.serialize import (collapse_by_symbol, format_symbol_entry,
+                               result_summary, symbol_summary)
 from .output.store import Store
 from .rules.store import RulesStore
 from .scanner import batch
@@ -22,27 +23,37 @@ LIST_NAMES = ["top", "bottom", "squeeze", "watch"]
 
 def compute_alerts(prev_lists: Optional[Dict[str, List[str]]],
                    new_lists: Dict[str, List[str]],
-                   subscriptions: List[tuple]) -> Dict[str, List[str]]:
+                   subscriptions: List[tuple],
+                   metrics: Optional[dict] = None,
+                   prev_metrics: Optional[dict] = None) -> Dict[str, List[str]]:
     """计算「新进清单」相对上一轮的增量，匹配订阅，返回 user_id -> 告警文案。
 
+    判定与文案都在**币级**：同一币种在多个交易所命中只算一次、只发一条（合并交易所标签）。
+    metrics/prev_metrics 缺省时退化为裸 symbol（单所行为不变）。
     订阅 target 可为清单名（关注整张清单的新进）或具体币种（该币新进任意清单）。
     """
     prev_lists = prev_lists or {}
-    newly: Dict[str, List[str]] = {}
-    for name, syms in new_lists.items():
-        before = set(prev_lists.get(name, []))
-        newly[name] = [s for s in syms if s not in before]
+    # 上一轮各清单已在的币种集合（币级）
+    prev_coin = {name: {e["symbol"] for e in collapse_by_symbol(keys, prev_metrics)}
+                 for name, keys in prev_lists.items()}
+    # 本轮各清单新进的币种条目（symbol 不在上一轮该清单 → 首次进入）
+    newly: Dict[str, list] = {}
+    for name, keys in new_lists.items():
+        before = prev_coin.get(name, set())
+        newly[name] = [e for e in collapse_by_symbol(keys, metrics)
+                       if e["symbol"] not in before]
 
     alerts: Dict[str, List[str]] = {}
     for user_id, target in subscriptions:
         msgs = []
         if target in newly:                      # 订阅了某清单
-            for s in newly[target]:
-                msgs.append(f"🆕 {s} 新进【{target}】清单")
+            for e in newly[target]:
+                msgs.append(f"🆕 {format_symbol_entry(e)} 新进【{target}】清单")
         else:                                    # 订阅了某币种
-            for name, syms in newly.items():
-                if target in syms:
-                    msgs.append(f"🆕 {target} 新进【{name}】清单")
+            for name, entries in newly.items():
+                for e in entries:
+                    if e["symbol"] == target:
+                        msgs.append(f"🆕 {format_symbol_entry(e)} 新进【{name}】清单")
         if msgs:
             alerts.setdefault(user_id, []).extend(msgs)
     return alerts
@@ -83,7 +94,9 @@ class ScanService:
                                                 caches=self._caches)
         summary = result_summary(result)
         alerts = compute_alerts(prev.get("lists") if prev else None,
-                                summary["lists"], self.store.all_subscriptions())
+                                summary["lists"], self.store.all_subscriptions(),
+                                metrics=summary["metrics"],
+                                prev_metrics=prev.get("metrics") if prev else None)
         self.store.save_result(summary)
         summary["alerts"] = alerts
         return summary
