@@ -102,6 +102,44 @@ def _bot(settings: Settings) -> int:
     return 0
 
 
+def _watch(settings: Settings) -> int:
+    """扫一轮播种参考 → WS 实时异动告警（需 ccxt.pro + 网络）。"""
+    import asyncio
+    import os
+
+    from .data.binance import BinanceProvider
+    from .output.discord_bot.commands import format_realtime_alert
+    from .output.store import Store
+    from .rules.store import RulesStore
+    from .scanner import realtime
+    from .service import ScanService
+
+    provider = BinanceProvider.create(settings, use_pro=True)
+    svc = ScanService(settings, Store("fx.db"), RulesStore(), provider)
+    monitor = realtime.RealtimeMonitor(timeframe=settings.timeframes[0])
+
+    webhook = os.getenv("DISCORD_WEBHOOK_URL")
+    notifier = None
+    if webhook:
+        from .output.notify.webhook import DiscordWebhookNotifier
+        notifier = DiscordWebhookNotifier(webhook)
+
+    async def on_alert(alert):
+        text = format_realtime_alert(alert)
+        print(text)
+        if notifier:
+            await notifier.send(text)
+
+    async def _main():
+        summary = await svc.rescan()
+        monitor.seed_from_summary(summary)
+        symbols = list(summary.get("metrics", {}).keys())
+        await realtime.watch(provider, symbols, monitor, on_alert=on_alert)
+
+    asyncio.run(_main())
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="fx", description="加密市场状态识别器 / 扫盘器")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -109,6 +147,7 @@ def main(argv=None) -> int:
     sub.add_parser("run-scan", help="连交易所跑一轮（需 live 依赖 + 网络）")
     sub.add_parser("serve", help="启动 Web 看板（需 live 依赖 + 网络）")
     sub.add_parser("bot", help="启动 Discord 交互机器人（需 live 依赖 + 网络）")
+    sub.add_parser("watch", help="WS 实时异动监控告警（需 ccxt.pro + 网络）")
 
     args = parser.parse_args(argv)
     settings = Settings.load()
@@ -122,6 +161,8 @@ def main(argv=None) -> int:
         return _serve(settings)
     if args.cmd == "bot":
         return _bot(settings)
+    if args.cmd == "watch":
+        return _watch(settings)
     print(f"未知命令 {args.cmd!r}。", file=sys.stderr)
     return 1
 

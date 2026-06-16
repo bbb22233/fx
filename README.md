@@ -15,8 +15,10 @@
 - **P6 推送**：Telegram / 钉钉 / Discord webhook 通知 + 订阅告警分发。
 - **P6.5 Discord 交互机器人**：slash 命令 `/scan /rescan /symbol /sub /unsub
   /subs /rules /setrule`，业务委托给共享 `ScanService`。
+- **P7 实时监控**：WS 现价缓存 + tick 级**异动告警**（复用「剩余动能」语义：
+  当未收线 K 已走幅度远超当前时间进度该有的量即告警），收线 cron 定时调度。
 
-待办：P7 WebSocket 实时监控；OKX/Bybit 数据源；Web 规则可视化编辑。
+待办：OKX/Bybit 数据源；Web 规则可视化编辑。
 
 > 联网功能（`run-scan` / `serve` / `bot`）需在可访问交易所/Discord 的环境运行，
 > 并 `pip install -e ".[live]"`。核心逻辑均已用 mock 离线覆盖。
@@ -54,6 +56,7 @@ PYTHONPATH=src python -m fx.main demo   # 离线合成数据跑通闭环
 fx run-scan                 # 连 Binance 跑一轮并打印清单
 fx serve                    # 启动看板 http://localhost:8000
 fx bot                      # 启动 Discord 交互机器人（需 DISCORD_BOT_TOKEN）
+fx watch                    # WS 实时异动监控（需 ccxt.pro；告警可推 DISCORD_WEBHOOK_URL）
 ```
 
 ## 目录

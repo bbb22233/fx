@@ -47,6 +47,16 @@ def format_subscriptions(targets: List[str]) -> str:
     return "你的订阅：\n" + "\n".join(f"• {t}" for t in targets)
 
 
+def format_realtime_alert(alert) -> str:
+    """实时异动告警文案。"""
+    return (
+        f"⚡ 异动 {alert.symbol} ({alert.timeframe})\n"
+        f"  现价 {alert.price} | 已走幅度 {alert.amplitude_pct:.2f}% "
+        f"(时间进度 {alert.elapsed_fraction*100:.0f}%) "
+        f"剩余动能 {alert.remaining_energy_pct:+.2f} → 提前发力"
+    )
+
+
 def format_rules(desc: dict) -> str:
     lines = ["⚙️ 当前规则阈值（`/setrule <路径> <值>` 修改）："]
     for k, v in desc.items():

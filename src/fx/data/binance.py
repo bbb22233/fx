@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence
+from typing import AsyncIterator, List, Optional, Sequence
 
 import pandas as pd
 
@@ -60,8 +60,12 @@ class BinanceProvider(DataProvider):
         self._limiter = RateLimiter(settings.ratelimit.max_concurrency)
 
     @classmethod
-    def create(cls, settings: Settings):  # pragma: no cover - 需联网/ccxt
-        import ccxt.async_support as ccxt
+    def create(cls, settings: Settings, use_pro: bool = False):  # pragma: no cover - 需联网/ccxt
+        # WS 用 ccxt.pro；仅 REST 用 ccxt.async_support
+        if use_pro:
+            import ccxt.pro as ccxt
+        else:
+            import ccxt.async_support as ccxt
         ex = ccxt.binance({
             "enableRateLimit": settings.ratelimit.enable_ccxt_ratelimit,
             "options": {"defaultType": settings.universe.market_type},
@@ -89,3 +93,10 @@ class BinanceProvider(DataProvider):
     async def fetch_last_price(self, symbol: str) -> float:
         t = await self._limiter.run(lambda: self._ex.fetch_ticker(symbol))
         return float(t["last"])
+
+    async def watch_tickers(self, symbols: Sequence[str]) -> AsyncIterator[dict]:  # pragma: no cover - 需 WS
+        """ccxt.pro WS 行情流：逐个产出 {'symbol','last'}。需用 create(use_pro=True)。"""
+        while True:
+            tickers = await self._ex.watch_tickers(list(symbols))
+            for sym, t in tickers.items():
+                yield {"symbol": sym, "last": t.get("last")}
