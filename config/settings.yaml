@@ -44,7 +44,19 @@ ratelimit:
   max_concurrency: 10
   enable_ccxt_ratelimit: true
 
-exchange: "binance"
+exchange: "binance"            # 单所回退（向后兼容）
+# 同时扫多家：列出后会并发扫描各所，结果按「交易所:币种」区分
+exchanges: ["binance"]         # 例：["binance", "okx", "bybit"]
+# 各所 ccxt 选项覆盖（默认市场类型因所而异；本环境无法实测，按需调整）
+exchange_options:
+  binance: {defaultType: "future"}   # Binance USDT 本位永续
+  okx: {defaultType: "swap"}
+  bybit: {defaultType: "swap"}
+
+# 实时异动监控
+realtime:
+  timeframe: "1d"              # 默认监控周期
+  energy_mult: 0.5             # 异动阈值：剩余动能 < −energy_mult×ATR% 即告警
 
 # 输出 / 通知（密钥从环境变量读，见 .env.example）
 output:

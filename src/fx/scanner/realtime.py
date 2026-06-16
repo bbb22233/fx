@@ -70,7 +70,7 @@ class RealtimeMonitor:
     每根 K 只告警一次（避免刷屏）。
     """
 
-    def __init__(self, timeframe: str = "1h", energy_mult: float = 0.5):
+    def __init__(self, timeframe: str = "1d", energy_mult: float = 0.5):
         self.timeframe = timeframe
         self.energy_mult = energy_mult
         # 参考数据：symbol -> (ATR%, 上一周期收盘)
@@ -133,15 +133,19 @@ class RealtimeMonitor:
 
 async def watch(provider, symbols, monitor: RealtimeMonitor,
                 price_cache: Optional[PriceCache] = None,
-                on_alert=None):  # pragma: no cover - 需 WS/网络
-    """订阅 WS 行情：更新现价缓存 + 跑异动检测，命中则回调 on_alert。"""
+                on_alert=None, exchange_id: Optional[str] = None):  # pragma: no cover - 需 WS/网络
+    """订阅 WS 行情：更新现价缓存 + 跑异动检测，命中则回调 on_alert。
+
+    多交易所时传 exchange_id，监控键统一为 'exchange:symbol'，与扫描结果键一致。
+    """
     async for ticker in provider.watch_tickers(symbols):
         sym, last = ticker.get("symbol"), ticker.get("last")
         if not sym or last is None:
             continue
         last = float(last)
+        key = f"{exchange_id}:{sym}" if exchange_id else sym
         if price_cache is not None:
-            price_cache.update(sym, last)
-        alert = monitor.on_tick(sym, last)
+            price_cache.update(key, last)
+        alert = monitor.on_tick(key, last)
         if alert and on_alert:
             await on_alert(alert)

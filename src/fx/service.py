@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from .config import Settings
 from .data.base import DataProvider
@@ -51,22 +51,36 @@ def compute_alerts(prev_lists: Optional[Dict[str, List[str]]],
 class ScanService:
     def __init__(self, settings: Settings, store: Store,
                  rules_store: Optional[RulesStore] = None,
-                 provider: Optional[DataProvider] = None):
+                 provider: Union[DataProvider, Dict[str, DataProvider], None] = None):
         self.settings = settings
         self.store = store
         self.rules_store = rules_store or RulesStore()
-        self.provider = provider
-        self._cache = KlineCache()
+        # 统一存成 dict: exchange_id -> provider（单个也包成 dict）
+        if provider is None:
+            self.providers: Dict[str, DataProvider] = {}
+        elif isinstance(provider, dict):
+            self.providers = provider
+        else:
+            eid = getattr(provider, "exchange_id", None) or "default"
+            self.providers = {eid: provider}
+        self._caches: Dict[str, KlineCache] = {}
 
     # ---- 扫盘 ----
     async def rescan(self, symbols: Optional[List[str]] = None) -> dict:
-        """触发一轮扫描，落库，返回结果摘要 + 本轮订阅告警。"""
-        if self.provider is None:
+        """触发一轮扫描（多交易所同时），落库，返回结果摘要 + 本轮订阅告警。"""
+        if not self.providers:
             raise RuntimeError("未配置数据源 provider，无法扫盘")
         rules = self.rules_store.get()
         prev = self.store.load_result()
-        result = await batch.run_scan(self.provider, self.settings, rules,
-                                      cache=self._cache, symbols=symbols)
+        if len(self.providers) == 1 and symbols is not None:
+            # 指定 symbols 的单所路径（保留给测试/精确扫描）
+            (eid, prov), = self.providers.items()
+            cache = self._caches.setdefault(eid, KlineCache())
+            result = await batch.run_scan(prov, self.settings, rules,
+                                          cache=cache, symbols=symbols)
+        else:
+            result = await batch.run_multi_scan(self.providers, self.settings, rules,
+                                                caches=self._caches)
         summary = result_summary(result)
         alerts = compute_alerts(prev.get("lists") if prev else None,
                                 summary["lists"], self.store.all_subscriptions())

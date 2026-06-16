@@ -45,14 +45,15 @@ def run(metrics_list: Iterable[SymbolMetrics], rules: Rules,
     result.lists["watch"] = []
 
     for m in metrics_list:
-        result.metrics[m.symbol] = m
+        key = m.key
+        result.metrics[key] = m
         state = classify_state(m, rules)
         if state is None:
             continue
-        result.states[m.symbol] = state
+        result.states[key] = state
 
         if state == "watch":
-            result.lists["watch"].append(m.symbol)
+            result.lists["watch"].append(key)
             continue
 
         # A/B：套用该状态下的各清单条件
@@ -60,6 +61,6 @@ def run(metrics_list: Iterable[SymbolMetrics], rules: Rules,
             if rule.state != state:
                 continue
             if evaluate_list(m, rule):
-                result.lists[name].append(m.symbol)
+                result.lists[name].append(key)
 
     return result

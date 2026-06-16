@@ -51,6 +51,11 @@ class RateLimitCfg(BaseModel):
     enable_ccxt_ratelimit: bool = True
 
 
+class RealtimeCfg(BaseModel):
+    timeframe: str = "1d"          # 实时异动监控周期（默认 1D）
+    energy_mult: float = 0.5       # 异动阈值：剩余动能 < −energy_mult×ATR% 即告警
+
+
 class Settings(BaseModel):
     timeframes: List[str] = ["1h", "4h", "8h", "1d"]
     universe: UniverseCfg = Field(default_factory=UniverseCfg)
@@ -61,8 +66,16 @@ class Settings(BaseModel):
     funding: FundingCfg = Field(default_factory=FundingCfg)
     derived_percentile_window: int = 180
     ratelimit: RateLimitCfg = Field(default_factory=RateLimitCfg)
-    exchange: str = "binance"
+    realtime: RealtimeCfg = Field(default_factory=RealtimeCfg)
+    exchange: str = "binance"                       # 单所回退（向后兼容）
+    exchanges: List[str] = Field(default_factory=list)  # 同时扫多家；为空则用 [exchange]
+    # 各所 ccxt 选项覆盖（如 defaultType，因各所默认市场类型不同）
+    exchange_options: Dict[str, dict] = Field(default_factory=dict)
     output: dict = Field(default_factory=dict)
+
+    @property
+    def active_exchanges(self) -> List[str]:
+        return self.exchanges or [self.exchange]
 
     @classmethod
     def load(cls, path: Optional[Path] = None) -> "Settings":

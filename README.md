@@ -17,8 +17,11 @@
   /subs /rules /setrule`，业务委托给共享 `ScanService`。
 - **P7 实时监控**：WS 现价缓存 + tick 级**异动告警**（复用「剩余动能」语义：
   当未收线 K 已走幅度远超当前时间进度该有的量即告警），收线 cron 定时调度。
+- **P8 多交易所**：泛化 `CcxtProvider` + `create_provider` 工厂，支持
+  **同时扫 Binance / OKX / Bybit**，结果按 `交易所:币种` 区分（同名币不撞键）。
+  异动阈值与实时周期走 `settings.yaml` 的 `realtime` 段（默认监控 **1D**）。
 
-待办：OKX/Bybit 数据源；Web 规则可视化编辑。
+待办：Web 规则可视化编辑。
 
 > 联网功能（`run-scan` / `serve` / `bot`）需在可访问交易所/Discord 的环境运行，
 > 并 `pip install -e ".[live]"`。核心逻辑均已用 mock 离线覆盖。

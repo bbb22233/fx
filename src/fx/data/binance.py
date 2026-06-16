@@ -1,8 +1,9 @@
-"""Binance 数据源实现（基于 ccxt.async_support）。
+"""ccxt 通用数据源实现（Binance / OKX / Bybit ...）。
 
 设计要点：
 - ccxt 懒加载，模块本身可在未装 ccxt 时被导入（测试/离线友好）。
-- ``exchange`` 可注入，单测传入 fake 即可，无需联网。
+- ``exchange`` 客户端可注入，单测传入 fake 即可，无需联网。
+- 通用 ``CcxtProvider`` + ``create_provider`` 工厂：换所只需换 exchange_id。
 - 限频集中在此层（RateLimiter + ccxt 内置 enableRateLimit）。
 - 未收线 K 的 close 用现价覆盖、high/low 取极值。
 """
@@ -17,6 +18,9 @@ from ..config import Settings
 from .base import DataProvider
 from .ratelimit import RateLimiter
 from .universe import select_top_volume
+
+# 支持的交易所（ccxt 统一接口，symbol/资金费率字段跨所一致）
+SUPPORTED_EXCHANGES = ("binance", "okx", "bybit")
 
 
 def to_dataframe(ohlcv: Sequence[Sequence[float]]) -> pd.DataFrame:
@@ -53,24 +57,14 @@ def required_bars(timeframe: str, settings: Settings) -> int:
     return base + 5  # 小缓冲
 
 
-class BinanceProvider(DataProvider):
-    def __init__(self, exchange, settings: Settings):
+class CcxtProvider(DataProvider):
+    """基于 ccxt 统一接口的通用数据源。"""
+
+    def __init__(self, exchange, settings: Settings, exchange_id: Optional[str] = None):
         self._ex = exchange
         self._settings = settings
+        self.exchange_id = exchange_id or getattr(exchange, "id", None)
         self._limiter = RateLimiter(settings.ratelimit.max_concurrency)
-
-    @classmethod
-    def create(cls, settings: Settings, use_pro: bool = False):  # pragma: no cover - 需联网/ccxt
-        # WS 用 ccxt.pro；仅 REST 用 ccxt.async_support
-        if use_pro:
-            import ccxt.pro as ccxt
-        else:
-            import ccxt.async_support as ccxt
-        ex = ccxt.binance({
-            "enableRateLimit": settings.ratelimit.enable_ccxt_ratelimit,
-            "options": {"defaultType": settings.universe.market_type},
-        })
-        return cls(ex, settings)
 
     async def close(self):  # pragma: no cover
         await self._ex.close()
@@ -95,8 +89,32 @@ class BinanceProvider(DataProvider):
         return float(t["last"])
 
     async def watch_tickers(self, symbols: Sequence[str]) -> AsyncIterator[dict]:  # pragma: no cover - 需 WS
-        """ccxt.pro WS 行情流：逐个产出 {'symbol','last'}。需用 create(use_pro=True)。"""
+        """ccxt.pro WS 行情流：逐个产出 {'symbol','last'}。需用 use_pro=True 构造。"""
         while True:
             tickers = await self._ex.watch_tickers(list(symbols))
             for sym, t in tickers.items():
                 yield {"symbol": sym, "last": t.get("last")}
+
+
+def create_provider(exchange_id: str, settings: Settings,
+                    use_pro: bool = False) -> CcxtProvider:  # pragma: no cover - 需联网/ccxt
+    """按交易所 id 构造 CcxtProvider。WS 用 ccxt.pro，仅 REST 用 ccxt.async_support。"""
+    if exchange_id not in SUPPORTED_EXCHANGES:
+        raise ValueError(f"暂不支持的交易所: {exchange_id!r}（支持 {SUPPORTED_EXCHANGES}）")
+    if use_pro:
+        import ccxt.pro as ccxt
+    else:
+        import ccxt.async_support as ccxt
+
+    # 默认市场类型按所而异，可被 settings.exchange_options 覆盖
+    options = {"defaultType": settings.universe.market_type}
+    options.update(settings.exchange_options.get(exchange_id, {}))
+    ex = getattr(ccxt, exchange_id)({
+        "enableRateLimit": settings.ratelimit.enable_ccxt_ratelimit,
+        "options": options,
+    })
+    return CcxtProvider(ex, settings, exchange_id=exchange_id)
+
+
+# 向后兼容别名
+BinanceProvider = CcxtProvider

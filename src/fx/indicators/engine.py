@@ -59,10 +59,11 @@ def _period_metrics(tf: str, df: pd.DataFrame, settings: Settings,
 
 def compute(symbol: str, frames: Dict[str, pd.DataFrame], settings: Settings,
             funding_history: Optional[Sequence[float]] = None,
-            now: Optional[datetime] = None) -> SymbolMetrics:
+            now: Optional[datetime] = None,
+            exchange: Optional[str] = None) -> SymbolMetrics:
     """算齐一个币种的全部指标。"""
     now = now or datetime.now(timezone.utc)
-    m = SymbolMetrics(symbol=symbol, as_of=now)
+    m = SymbolMetrics(symbol=symbol, exchange=exchange, as_of=now)
 
     for tf, df in frames.items():
         if df is None or len(df) == 0:

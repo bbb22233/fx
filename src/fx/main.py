@@ -68,14 +68,20 @@ def _demo(settings: Settings, rules: Rules) -> int:
     return 0
 
 
-def _build_service(settings: Settings):
-    """组装 ScanService（接真实 Binance 数据源）。需 live 依赖与网络。"""
-    from .data.binance import BinanceProvider
+def _build_providers(settings: Settings, use_pro: bool = False):
+    """按 settings.active_exchanges 构造多个 provider（id -> provider）。"""
+    from .data.binance import create_provider
+    return {eid: create_provider(eid, settings, use_pro=use_pro)
+            for eid in settings.active_exchanges}
+
+
+def _build_service(settings: Settings, providers=None):
+    """组装 ScanService（接真实交易所，可同时扫多家）。需 live 依赖与网络。"""
     from .output.store import Store
     from .rules.store import RulesStore
     from .service import ScanService
-    provider = BinanceProvider.create(settings)
-    return ScanService(settings, Store("fx.db"), RulesStore(), provider)
+    providers = providers if providers is not None else _build_providers(settings)
+    return ScanService(settings, Store("fx.db"), RulesStore(), providers)
 
 
 def _run_scan(settings: Settings) -> int:
@@ -103,20 +109,20 @@ def _bot(settings: Settings) -> int:
 
 
 def _watch(settings: Settings) -> int:
-    """扫一轮播种参考 → WS 实时异动告警（需 ccxt.pro + 网络）。"""
+    """扫一轮播种参考 → WS 实时异动告警（多所，需 ccxt.pro + 网络）。"""
     import asyncio
     import os
 
-    from .data.binance import BinanceProvider
     from .output.discord_bot.commands import format_realtime_alert
     from .output.store import Store
     from .rules.store import RulesStore
     from .scanner import realtime
     from .service import ScanService
 
-    provider = BinanceProvider.create(settings, use_pro=True)
-    svc = ScanService(settings, Store("fx.db"), RulesStore(), provider)
-    monitor = realtime.RealtimeMonitor(timeframe=settings.timeframes[0])
+    providers = _build_providers(settings, use_pro=True)
+    svc = ScanService(settings, Store("fx.db"), RulesStore(), providers)
+    monitor = realtime.RealtimeMonitor(timeframe=settings.realtime.timeframe,
+                                       energy_mult=settings.realtime.energy_mult)
 
     webhook = os.getenv("DISCORD_WEBHOOK_URL")
     notifier = None
@@ -133,8 +139,15 @@ def _watch(settings: Settings) -> int:
     async def _main():
         summary = await svc.rescan()
         monitor.seed_from_summary(summary)
-        symbols = list(summary.get("metrics", {}).keys())
-        await realtime.watch(provider, symbols, monitor, on_alert=on_alert)
+        # 各所并发订阅 WS：监控键 = 'exchange:symbol'，与扫描结果键一致
+        tasks = []
+        for eid, provider in providers.items():
+            prefix = f"{eid}:"
+            symbols = [k[len(prefix):] for k in summary.get("metrics", {}) if k.startswith(prefix)]
+            if symbols:
+                tasks.append(realtime.watch(provider, symbols, monitor,
+                                            on_alert=on_alert, exchange_id=eid))
+        await asyncio.gather(*tasks)
 
     asyncio.run(_main())
     return 0

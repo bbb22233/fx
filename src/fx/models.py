@@ -35,6 +35,7 @@ class SymbolMetrics:
     """一个币种的全部 16 项指标（4 周期 + 单值）。"""
 
     symbol: str
+    exchange: Optional[str] = None           # 来源交易所（多所扫描时区分）
     periods: Dict[str, PeriodMetrics] = field(default_factory=dict)
     # 单值指标（不分周期）
     mad21_pct: Optional[float] = None        # 现价 vs 日线 MA21
@@ -43,6 +44,11 @@ class SymbolMetrics:
     funding_rate: Optional[float] = None      # 最新一期资金费率（原始值，如 0.0001）
     funding_rate_pct_rank: Optional[float] = None  # 资金费率在过去 33 天的百分位
     as_of: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def key(self) -> str:
+        """结果字典/清单里的唯一键：有交易所则 'exchange:symbol'，否则 symbol。"""
+        return f"{self.exchange}:{self.symbol}" if self.exchange else self.symbol
 
     # ---- 指标寻址 ----
     def get(self, ref: str) -> Optional[float]:
