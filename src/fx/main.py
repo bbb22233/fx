@@ -68,12 +68,47 @@ def _demo(settings: Settings, rules: Rules) -> int:
     return 0
 
 
+def _build_service(settings: Settings):
+    """组装 ScanService（接真实 Binance 数据源）。需 live 依赖与网络。"""
+    from .data.binance import BinanceProvider
+    from .output.store import Store
+    from .rules.store import RulesStore
+    from .service import ScanService
+    provider = BinanceProvider.create(settings)
+    return ScanService(settings, Store("fx.db"), RulesStore(), provider)
+
+
+def _run_scan(settings: Settings) -> int:
+    import asyncio
+    svc = _build_service(settings)
+    summary = asyncio.run(svc.rescan())
+    from .output.discord_bot.commands import format_scan
+    print(format_scan(summary))
+    return 0
+
+
+def _serve(settings: Settings) -> int:
+    import uvicorn
+    from .output.web.app import create_app
+    app = create_app(_build_service(settings))
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+    return 0
+
+
+def _bot(settings: Settings) -> int:
+    from .output.discord_bot.bot import run_bot
+    from .output.discord_bot.commands import CommandRouter
+    run_bot(CommandRouter(_build_service(settings)))
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="fx", description="加密市场状态识别器 / 扫盘器")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("demo", help="离线合成数据跑通闭环")
-    sub.add_parser("run-scan", help="连交易所跑一轮（需 live 依赖）")
-    sub.add_parser("serve", help="启动看板（需 live 依赖）")
+    sub.add_parser("run-scan", help="连交易所跑一轮（需 live 依赖 + 网络）")
+    sub.add_parser("serve", help="启动 Web 看板（需 live 依赖 + 网络）")
+    sub.add_parser("bot", help="启动 Discord 交互机器人（需 live 依赖 + 网络）")
 
     args = parser.parse_args(argv)
     settings = Settings.load()
@@ -81,7 +116,13 @@ def main(argv=None) -> int:
 
     if args.cmd == "demo":
         return _demo(settings, rules)
-    print(f"命令 {args.cmd!r} 尚未接入（见计划 P4+）。", file=sys.stderr)
+    if args.cmd == "run-scan":
+        return _run_scan(settings)
+    if args.cmd == "serve":
+        return _serve(settings)
+    if args.cmd == "bot":
+        return _bot(settings)
+    print(f"未知命令 {args.cmd!r}。", file=sys.stderr)
     return 1
 
 

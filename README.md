@@ -6,11 +6,25 @@
 
 ## 当前进度
 
-已完成 **离线核心闭环（P0–P3）**：指标层（16 指标，纯函数）、规则引擎
-（配置驱动的阈值条件）、分类器（波动分 → A/B/观察 → 各清单）、单元测试。
+已完成（全部含离线单元测试，35 个全通过）：
 
-数据接入（Binance）、调度、看板、推送、Discord 交互机器人为后续阶段
-（P4–P7），详见 `config/` 与计划。
+- **P0–P3 离线核心**：16 指标（纯函数）、配置驱动规则引擎、分类器。
+- **P4 数据层**：ccxt 版 BinanceProvider（可注入 mock）、Top N 选币、限频、
+  增量缓存、批量扫描编排。
+- **P5 存储/看板**：sqlite 持久化、FastAPI JSON API + 极简看板页。
+- **P6 推送**：Telegram / 钉钉 / Discord webhook 通知 + 订阅告警分发。
+- **P6.5 Discord 交互机器人**：slash 命令 `/scan /rescan /symbol /sub /unsub
+  /subs /rules /setrule`，业务委托给共享 `ScanService`。
+
+待办：P7 WebSocket 实时监控；OKX/Bybit 数据源；Web 规则可视化编辑。
+
+> 联网功能（`run-scan` / `serve` / `bot`）需在可访问交易所/Discord 的环境运行，
+> 并 `pip install -e ".[live]"`。核心逻辑均已用 mock 离线覆盖。
+
+## 架构要点
+
+Discord 机器人与 Web 看板都是薄适配器，共享同一业务大脑 **`ScanService`**
+（触发扫盘 / 查询 / 订阅 / 规则查改）。命令格式化与规则求值是纯函数，便于测试。
 
 ## 指标（16）
 
@@ -32,9 +46,14 @@
 ## 快速开始
 
 ```bash
-pip install -e .            # 或 pip install pandas numpy pydantic pydantic-settings pyyaml
-pytest                      # 跑单元测试
+pip install -e .            # 核心；联网功能用 pip install -e ".[live]"
+pytest                      # 跑单元测试（35 个）
 PYTHONPATH=src python -m fx.main demo   # 离线合成数据跑通闭环
+
+# 联网（需可访问交易所 / Discord）
+fx run-scan                 # 连 Binance 跑一轮并打印清单
+fx serve                    # 启动看板 http://localhost:8000
+fx bot                      # 启动 Discord 交互机器人（需 DISCORD_BOT_TOKEN）
 ```
 
 ## 目录
