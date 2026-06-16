@@ -1,0 +1,42 @@
+[project]
+name = "fx"
+version = "0.1.0"
+description = "加密货币市场状态识别器 / 扫盘器 (Crypto market-state recognizer / scanner)"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Live data / serving / scheduling — only needed once you go past the offline core (P4+).
+live = [
+    "ccxt>=4.0",
+    "httpx>=0.27",
+    "tenacity>=8.0",
+    "apscheduler>=3.10",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "sqlmodel>=0.0.16",
+    "discord.py>=2.3",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+fx = "fx.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

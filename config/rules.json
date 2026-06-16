@@ -1,0 +1,38 @@
+{
+  "_comment": "本期固定规则。分类分流(波动分→A/B/观察)为结构性逻辑，硬编码在 classifier；此处只配阈值与各清单的条件组。指标引用统一 metric@timeframe；单值指标(mad21_pct_rank/funding 等)不带 @。",
+  "classification": {
+    "score_metrics": ["atr_pct_rank@4h", "amp_pct_rank@4h"],
+    "score_agg": "mean",
+    "high_vol_min": 60.0,
+    "low_vol_max": 30.0
+  },
+  "lists": {
+    "top": {
+      "label": "顶部",
+      "state": "A",
+      "logic": "AND",
+      "conditions": [
+        {"metric": "pctB@1d", "op": ">", "value": 0.9},
+        {"metric": "mad21_pct_rank", "op": ">", "value": 90.0}
+      ]
+    },
+    "bottom": {
+      "label": "底部",
+      "state": "A",
+      "logic": "AND",
+      "conditions": [
+        {"metric": "pctB@1d", "op": "<", "value": 0.1},
+        {"metric": "mad21_pct_rank", "op": "<", "value": 10.0}
+      ]
+    },
+    "squeeze": {
+      "label": "收口待变盘",
+      "state": "B",
+      "logic": "AND",
+      "conditions": [
+        {"metric": "bandwidth_pct_rank@1d", "op": "<", "value": 20.0},
+        {"metric": "remaining_energy_pct@1d", "op": ">", "value_metric": "atr_pct@1d", "value_mult": 0.5}
+      ]
+    }
+  }
+}

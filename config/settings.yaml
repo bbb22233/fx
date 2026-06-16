@@ -1,0 +1,57 @@
+# 运行配置 —— 集中所有魔法数，避免散落代码里。
+
+# 计算周期（共 4 个）
+timeframes: ["1h", "4h", "8h", "1d"]
+
+# 扫盘范围：24h 成交额 Top N（USDT 永续合约）
+universe:
+  top_n: 200
+  quote: "USDT"
+  market_type: "swap"        # 资金费率仅合约有
+  exclude_leveraged: true    # 剔除 UP/DOWN/BULL/BEAR 等杠杆代币
+  refresh_minutes: 60
+
+# 百分位回看窗口 N（按周期，单位=根）
+percentile_window:
+  "1h": 200
+  "4h": 233
+  "8h": 168
+  "1d": 180
+
+# 布林带参数（对齐 MA21）
+bollinger:
+  period: 21
+  std_mult: 2.0
+
+# ATR
+atr_period: 14
+
+# 均线偏离 MAD（固定用日线 MA）
+mad:
+  ma_short: 21
+  ma_long: 72
+
+# 资金费率
+funding:
+  lookback_days: 33          # 每 8h 一期 → ≈ 99 期
+  periods_per_day: 3
+
+# 1D 衍生百分位窗口
+derived_percentile_window: 180
+
+# 限频（Binance REST）
+ratelimit:
+  max_concurrency: 10
+  enable_ccxt_ratelimit: true
+
+exchange: "binance"
+
+# 输出 / 通知（密钥从环境变量读，见 .env.example）
+output:
+  telegram:
+    enabled: false
+  dingtalk:
+    enabled: false
+  discord:
+    enabled: false
+    # bot token / channel 从环境变量 DISCORD_BOT_TOKEN / DISCORD_CHANNEL_ID 读
