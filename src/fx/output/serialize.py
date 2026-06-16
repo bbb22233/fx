@@ -16,6 +16,7 @@ def symbol_summary(m: SymbolMetrics) -> dict:
     p1d = m.periods.get("1d")
     out = {
         "symbol": m.symbol,
+        "exchange": m.exchange,
         "mad21_pct": _round(m.mad21_pct, 2),
         "mad72_pct": _round(m.mad72_pct, 2),
         "mad21_pct_rank": _round(m.mad21_pct_rank, 1),
@@ -36,6 +37,30 @@ def symbol_summary(m: SymbolMetrics) -> dict:
             "bandwidth_pct_rank": _round(p.bandwidth_pct_rank, 1),
         }
     return out
+
+
+def collapse_by_symbol(keys, metrics: dict) -> list:
+    """把清单里的 key（可能是 ``exchange:symbol``）按币种去重，合并各交易所。
+
+    返回 ``[{"symbol", "exchanges"}]``，保持首见顺序。单所(exchange=None)时
+    exchanges 为 ``[None]``，展示层退化为裸 symbol（最干净）。用 metrics 里携带的
+    symbol/exchange 字段还原，避免对含 ``:`` 的 symbol 做歧义字符串切分。
+    """
+    out: dict = {}
+    for k in keys:
+        m = metrics.get(k) or {}
+        sym = m.get("symbol", k)
+        ex = m.get("exchange")
+        exchanges = out.setdefault(sym, [])
+        if ex not in exchanges:
+            exchanges.append(ex)
+    return [{"symbol": sym, "exchanges": exs} for sym, exs in out.items()]
+
+
+def format_symbol_entry(entry: dict) -> str:
+    """去重条目 → 展示串：单所为 ``BTC/USDT:USDT``，多所为 ``BTC/USDT:USDT [binance, okx]``。"""
+    exs = [e for e in entry["exchanges"] if e]
+    return entry["symbol"] + (f" [{', '.join(exs)}]" if exs else "")
 
 
 def result_summary(result: ScanResult) -> dict:

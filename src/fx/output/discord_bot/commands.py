@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from ...output.serialize import collapse_by_symbol, format_symbol_entry
 from ...service import LIST_NAMES, ScanService
 
 LIST_LABELS = {"top": "顶部", "bottom": "底部", "squeeze": "收口待变盘", "watch": "观察区"}
@@ -17,12 +18,15 @@ LIST_LABELS = {"top": "顶部", "bottom": "底部", "squeeze": "收口待变盘"
 def format_scan(summary: Optional[dict]) -> str:
     if not summary:
         return "暂无扫描结果，先用 `/rescan` 跑一轮。"
+    metrics = summary.get("metrics", {})
     lines = [f"📊 扫描时间：{summary.get('as_of', '?')}"]
     for name in LIST_NAMES:
-        syms = summary.get("lists", {}).get(name, [])
+        keys = summary.get("lists", {}).get(name, [])
+        entries = collapse_by_symbol(keys, metrics)        # 同币跨所去重
         label = LIST_LABELS.get(name, name)
-        shown = ", ".join(syms[:15]) + (f" …(+{len(syms) - 15})" if len(syms) > 15 else "")
-        lines.append(f"【{label}】({len(syms)}): {shown or '—'}")
+        names = [format_symbol_entry(e) for e in entries]
+        shown = ", ".join(names[:15]) + (f" …(+{len(names) - 15})" if len(names) > 15 else "")
+        lines.append(f"【{label}】({len(entries)}): {shown or '—'}")
     return "\n".join(lines)
 
 
