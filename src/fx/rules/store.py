@@ -22,6 +22,22 @@ class RulesStore:
     def get(self) -> Rules:
         return Rules.load(self.path)
 
+    def raw_rules(self) -> dict:
+        """返回完整结构化规则文档（去 _comment），供 Web 可视化编辑器渲染。"""
+        return self.get().model_dump()
+
+    def replace(self, data: dict) -> Rules:
+        """整文档替换：校验通过后回写，保留原 _comment。失败抛 ValidationError。
+
+        供 Web 编辑器增删改清单/条件后一次性提交（细粒度 set_value 无法增删）。
+        """
+        data = {k: v for k, v in data.items() if k != "_comment"}
+        rules = Rules(**data)                    # 校验（失败抛 ValidationError）
+        comment = self._raw().get("_comment") if self.path.exists() else None
+        out = ({"_comment": comment} if comment is not None else {}) | data
+        self.path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+        return rules
+
     def describe(self) -> dict:
         """返回当前可编辑阈值（用于展示）。"""
         r = self.get()

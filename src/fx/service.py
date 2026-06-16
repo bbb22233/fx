@@ -119,3 +119,12 @@ class ScanService:
     def set_rule(self, path: str, value) -> dict:
         self.rules_store.set_value(path, value)
         return self.describe_rules()
+
+    def get_rules_doc(self) -> dict:
+        """完整结构化规则文档（Web 可视化编辑器初始化用）。"""
+        return self.rules_store.raw_rules()
+
+    def replace_rules(self, data: dict) -> dict:
+        """整文档替换规则（Web 编辑器保存）。校验失败抛 ValidationError。"""
+        self.rules_store.replace(data)
+        return self.get_rules_doc()
