@@ -84,6 +84,41 @@ def test_rescan_dispatches_subscription_alerts(tmp_path):
         assert all(s.startswith("<@u1> 🆕") for s in notifier.sent)
 
 
+# ----------------------------- 频道内推送（bot notifier） -----------------------------
+class _FakeChannel:
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, text):
+        self.sent.append(text)
+
+
+class _FakeClient:
+    def __init__(self, cached=True):
+        self.channel = _FakeChannel()
+        self._cached = cached
+
+    def get_channel(self, cid):
+        return self.channel if self._cached else None
+
+    async def fetch_channel(self, cid):
+        return self.channel
+
+
+def test_discord_bot_notifier_posts_to_channel():
+    from fx.output.discord_bot.notify import DiscordBotNotifier
+    c = _FakeClient(cached=True)
+    asyncio.run(DiscordBotNotifier(c, "123").send("<@u1> hi"))
+    assert c.channel.sent == ["<@u1> hi"]
+
+
+def test_discord_bot_notifier_fetches_when_not_cached():
+    from fx.output.discord_bot.notify import DiscordBotNotifier
+    c = _FakeClient(cached=False)                    # get_channel→None → fetch 回退
+    asyncio.run(DiscordBotNotifier(c, 123).send("yo"))
+    assert c.channel.sent == ["yo"]
+
+
 def test_rescan_without_notifier_is_noop(tmp_path):
     shutil.copy(DEFAULT_RULES, tmp_path / "rules.json")
     svc = ScanService(Settings(), Store(str(tmp_path / "t.db")),

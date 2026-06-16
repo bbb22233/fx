@@ -145,7 +145,8 @@ def _schedule(settings: Settings) -> int:
 def _bot(settings: Settings) -> int:
     from .output.discord_bot.bot import run_bot
     from .output.discord_bot.commands import CommandRouter
-    run_bot(CommandRouter(_build_service(settings)))
+    # 设了 DISCORD_CHANNEL_ID 时：bot 自带定时扫描 + 把订阅告警直接发到该频道
+    run_bot(CommandRouter(_build_service(settings)), settings=settings)
     return 0
 
 

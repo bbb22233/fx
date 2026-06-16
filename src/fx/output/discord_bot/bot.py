@@ -11,17 +11,27 @@ import os
 from .commands import CommandRouter
 
 
-def build_client(router: CommandRouter):  # pragma: no cover - 需 discord.py/网络
+def build_client(router: CommandRouter, settings=None, channel_id=None):  # pragma: no cover - 需 discord.py/网络
     import discord
     from discord import app_commands
 
     intents = discord.Intents.default()
     client = discord.Client(intents=intents)
     tree = app_commands.CommandTree(client)
+    _started = {"v": False}
 
     @client.event
     async def on_ready():
         await tree.sync()
+        # 配了频道 → 用「频道内推送」notifier，并在本进程起定时扫描（告警直接发到频道）
+        if _started["v"] or not channel_id:
+            return
+        _started["v"] = True
+        from .notify import DiscordBotNotifier
+        router.svc.notifier = DiscordBotNotifier(client, channel_id)
+        if settings is not None:
+            from ...scanner.scheduler import start_scheduler
+            start_scheduler(router.svc, settings)
 
     @tree.command(name="scan", description="查看最新扫盘结果")
     async def scan(it: "discord.Interaction"):
@@ -60,9 +70,10 @@ def build_client(router: CommandRouter):  # pragma: no cover - 需 discord.py/�
     return client
 
 
-def run_bot(router: CommandRouter, token: str = None):  # pragma: no cover
+def run_bot(router: CommandRouter, token: str = None, settings=None, channel_id=None):  # pragma: no cover
     token = token or os.getenv("DISCORD_BOT_TOKEN")
+    channel_id = channel_id or os.getenv("DISCORD_CHANNEL_ID")
     if not token:
         raise RuntimeError("缺少 DISCORD_BOT_TOKEN")
-    client = build_client(router)
+    client = build_client(router, settings=settings, channel_id=channel_id)
     client.run(token)
