@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Dict, List, Optional, Union
 
 from .config import Settings
@@ -62,10 +63,12 @@ def compute_alerts(prev_lists: Optional[Dict[str, List[str]]],
 class ScanService:
     def __init__(self, settings: Settings, store: Store,
                  rules_store: Optional[RulesStore] = None,
-                 provider: Union[DataProvider, Dict[str, DataProvider], None] = None):
+                 provider: Union[DataProvider, Dict[str, DataProvider], None] = None,
+                 notifier=None):
         self.settings = settings
         self.store = store
         self.rules_store = rules_store or RulesStore()
+        self.notifier = notifier        # 可选：每轮扫描后推送订阅告警
         # 统一存成 dict: exchange_id -> provider（单个也包成 dict）
         if provider is None:
             self.providers: Dict[str, DataProvider] = {}
@@ -99,7 +102,19 @@ class ScanService:
                                 prev_metrics=prev.get("metrics") if prev else None)
         self.store.save_result(summary)
         summary["alerts"] = alerts
+        await self._push_alerts(alerts)
         return summary
+
+    async def _push_alerts(self, alerts: Dict[str, List[str]]) -> int:
+        """把本轮订阅告警推送给已配置的 notifier（@ 订阅者）。无 notifier 或无告警则跳过。"""
+        if not self.notifier or not alerts:
+            return 0
+        from .output.notify.base import dispatch_alerts
+        try:
+            return await dispatch_alerts(self.notifier, alerts)
+        except Exception as exc:  # noqa: BLE001 - 推送失败不阻断扫描主流程
+            print(f"[warn] 订阅告警推送失败: {exc}", file=sys.stderr)
+            return 0
 
     # ---- 查询 ----
     def get_latest(self) -> Optional[dict]:

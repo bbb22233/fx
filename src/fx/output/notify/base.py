@@ -12,6 +12,20 @@ class Notifier(ABC):
         """推送一条消息。"""
 
 
+class MultiNotifier(Notifier):
+    """扇出到多个 Notifier（如同时发 Discord + 钉钉 + Telegram）。单个失败不影响其余。"""
+
+    def __init__(self, notifiers):
+        self.notifiers = [n for n in notifiers if n is not None]
+
+    async def send(self, text: str) -> None:
+        for n in self.notifiers:
+            try:
+                await n.send(text)
+            except Exception:  # noqa: BLE001 - 一路失败不阻断其它推送
+                pass
+
+
 async def dispatch_alerts(notifier: Notifier, alerts: Dict[str, List[str]]) -> int:
     """把订阅告警逐条推送，返回发送条数。
 

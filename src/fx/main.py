@@ -75,13 +75,34 @@ def _build_providers(settings: Settings, use_pro: bool = False):
             for eid in settings.active_exchanges}
 
 
-def _build_service(settings: Settings, providers=None):
+def _build_notifier(settings: Settings = None):
+    """按环境变量组装推送通道（Discord/钉钉/Telegram，可多选）。都未配置则返回 None。"""
+    import os
+
+    from .output.notify.base import MultiNotifier
+    from .output.notify.webhook import (DingTalkNotifier, DiscordWebhookNotifier,
+                                        TelegramNotifier)
+    notifiers = []
+    if os.getenv("DISCORD_WEBHOOK_URL"):
+        notifiers.append(DiscordWebhookNotifier(os.environ["DISCORD_WEBHOOK_URL"]))
+    if os.getenv("DINGTALK_WEBHOOK_URL"):
+        notifiers.append(DingTalkNotifier(os.environ["DINGTALK_WEBHOOK_URL"]))
+    if os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"):
+        notifiers.append(TelegramNotifier(os.environ["TELEGRAM_BOT_TOKEN"],
+                                          os.environ["TELEGRAM_CHAT_ID"]))
+    if not notifiers:
+        return None
+    return notifiers[0] if len(notifiers) == 1 else MultiNotifier(notifiers)
+
+
+def _build_service(settings: Settings, providers=None, notifier=None):
     """组装 ScanService（接真实交易所，可同时扫多家）。需 live 依赖与网络。"""
     from .output.store import Store
     from .rules.store import RulesStore
     from .service import ScanService
     providers = providers if providers is not None else _build_providers(settings)
-    return ScanService(settings, Store("fx.db"), RulesStore(), providers)
+    notifier = notifier if notifier is not None else _build_notifier(settings)
+    return ScanService(settings, Store("fx.db"), RulesStore(), providers, notifier=notifier)
 
 
 def _run_scan(settings: Settings) -> int:
@@ -101,6 +122,26 @@ def _serve(settings: Settings) -> int:
     return 0
 
 
+def _schedule(settings: Settings) -> int:
+    """按各周期收线 cron 定时扫描，每轮自动推送订阅告警（需 APScheduler + 网络）。"""
+    import asyncio
+
+    from .scanner.scheduler import start_scheduler
+
+    svc = _build_service(settings)
+
+    async def _main():
+        start_scheduler(svc, settings)
+        print("定时扫盘已启动（按收线 cron 触发；订阅告警自动推送）。Ctrl-C 退出。")
+        await asyncio.Event().wait()      # 常驻
+
+    try:
+        asyncio.run(_main())
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def _bot(settings: Settings) -> int:
     from .output.discord_bot.bot import run_bot
     from .output.discord_bot.commands import CommandRouter
@@ -111,24 +152,15 @@ def _bot(settings: Settings) -> int:
 def _watch(settings: Settings) -> int:
     """扫一轮播种参考 → WS 实时异动告警（多所，需 ccxt.pro + 网络）。"""
     import asyncio
-    import os
 
     from .output.discord_bot.commands import format_realtime_alert
-    from .output.store import Store
-    from .rules.store import RulesStore
     from .scanner import realtime
-    from .service import ScanService
 
     providers = _build_providers(settings, use_pro=True)
-    svc = ScanService(settings, Store("fx.db"), RulesStore(), providers)
+    notifier = _build_notifier(settings)
+    svc = _build_service(settings, providers=providers, notifier=notifier)
     monitor = realtime.RealtimeMonitor(timeframe=settings.realtime.timeframe,
                                        energy_mult=settings.realtime.energy_mult)
-
-    webhook = os.getenv("DISCORD_WEBHOOK_URL")
-    notifier = None
-    if webhook:
-        from .output.notify.webhook import DiscordWebhookNotifier
-        notifier = DiscordWebhookNotifier(webhook)
 
     async def on_alert(alert):
         text = format_realtime_alert(alert)
@@ -159,6 +191,7 @@ def main(argv=None) -> int:
     sub.add_parser("demo", help="离线合成数据跑通闭环")
     sub.add_parser("run-scan", help="连交易所跑一轮（需 live 依赖 + 网络）")
     sub.add_parser("serve", help="启动 Web 看板（需 live 依赖 + 网络）")
+    sub.add_parser("schedule", help="定时收线扫描 + 自动推送订阅告警（需 APScheduler + 网络）")
     sub.add_parser("bot", help="启动 Discord 交互机器人（需 live 依赖 + 网络）")
     sub.add_parser("watch", help="WS 实时异动监控告警（需 ccxt.pro + 网络）")
 
@@ -172,6 +205,8 @@ def main(argv=None) -> int:
         return _run_scan(settings)
     if args.cmd == "serve":
         return _serve(settings)
+    if args.cmd == "schedule":
+        return _schedule(settings)
     if args.cmd == "bot":
         return _bot(settings)
     if args.cmd == "watch":
