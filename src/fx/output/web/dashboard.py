@@ -13,7 +13,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>fx// scanner</title>
+<title>fx// 扫盘</title>
 <style>
   :root { --g: #33ff66; --dim: #1f8a45; --bg: #050805; --panel: #0a120c; --warn: #ffcc00; --err: #ff4455; }
   * { box-sizing: border-box; }
@@ -63,20 +63,20 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>fx// CRYPTO MARKET SCANNER<span class="blink">_</span></h1>
+<h1>fx// 加密市场扫盘器<span class="blink">_</span></h1>
 <div class="bar">
-  <button id="scan" onclick="doScan()">▶ scan</button>
-  <button id="autoscan" class="toggle" onclick="toggleAutoScan()">auto-scan: off</button>
+  <button id="scan" onclick="doScan()">▶ 扫描</button>
+  <button id="autoscan" class="toggle" onclick="toggleAutoScan()">自动扫描：关</button>
   <span class="sep">|</span>
-  <span id="status">booting…</span>
+  <span id="status">启动中…</span>
   <span class="sep">|</span>
   <span id="clock"></span>
-  <a href="/rules" style="margin-left:auto">⚙ rules</a>
+  <a href="/rules" style="margin-left:auto">⚙ 规则</a>
 </div>
 <div id="grid" class="grid"></div>
 
 <script>
-const LABELS = { top: "顶部 / TOP", bottom: "底部 / BOTTOM", squeeze: "收口 / SQUEEZE", watch: "观察 / WATCH" };
+const LABELS = { top: "顶部", bottom: "底部", squeeze: "收口待变盘", watch: "观察区" };
 const ORDER = ["top", "bottom", "squeeze", "watch"];
 const REFRESH_MS = 5000;    // 结果自动刷新
 const SCAN_MS = 60000;      // 自动扫描间隔
@@ -104,15 +104,15 @@ function detailText(e, metrics) {
   return e.items.map(it => {
     const m = metrics[it.key] || {}, p = (m.periods || {})["1d"] || {};
     const tag = it.exchange ? it.exchange + "  " : "";
-    return `${tag}1D %B=${fmt(p.pctB, 2)} bw%rk=${fmt(p.bandwidth_pct_rank, 0)} `
-         + `rem=${fmt(p.remaining_energy_pct, 2)} atr%=${fmt(p.atr_pct, 2)}\n`
-         + `    mad21rk=${fmt(m.mad21_pct_rank, 0)} fund=${fmt(m.funding_rate, 5)} (rk ${fmt(m.funding_rate_pct_rank, 0)})`;
+    return `${tag}日线 %B=${fmt(p.pctB, 2)} 带宽位=${fmt(p.bandwidth_pct_rank, 0)} `
+         + `剩余动能=${fmt(p.remaining_energy_pct, 2)} ATR%=${fmt(p.atr_pct, 2)}\n`
+         + `    MAD21位=${fmt(m.mad21_pct_rank, 0)} 资金费率=${fmt(m.funding_rate, 5)} (位 ${fmt(m.funding_rate_pct_rank, 0)})`;
   }).join("\n");
 }
 
 function render() {
   const grid = document.getElementById("grid");
-  if (!latest || !latest.lists) { grid.innerHTML = '<div class="empty">// no scan yet — press [scan]</div>'; return; }
+  if (!latest || !latest.lists) { grid.innerHTML = '<div class="empty">// 暂无扫描结果 —— 点【扫描】跑一轮</div>'; return; }
   const metrics = latest.metrics || {};
   grid.innerHTML = "";
   for (const name of ORDER) {
@@ -143,23 +143,23 @@ async function loadLatest() {
     const r = await fetch("/api/scan/latest");
     latest = await r.json();
     render();
-    const t = latest && latest.as_of ? latest.as_of.replace("T", " ").slice(0, 19) + "Z" : "n/a";
-    if (!scanning) status("last scan: " + t);
-  } catch (e) { status("link down: " + e, "err"); }
+    const t = latest && latest.as_of ? latest.as_of.replace("T", " ").slice(0, 19) + "Z" : "无";
+    if (!scanning) status("上次扫描：" + t);
+  } catch (e) { status("连接中断：" + e, "err"); }
 }
 
 async function doScan() {
   if (scanning) return;
   scanning = true;
   document.getElementById("scan").disabled = true;
-  status("scanning… ▓▓▓", "warn");
+  status("扫描中… ▓▓▓", "warn");
   try {
     const r = await fetch("/api/rescan", { method: "POST" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     await loadLatest();
-    status("scan complete ✓");
+    status("扫描完成 ✓");
   } catch (e) {
-    status("scan failed: " + e + " — auto-scan off", "err");
+    status("扫描失败：" + e + " —— 已关闭自动扫描", "err");
     autoScan = false; syncAutoScan();
   } finally {
     scanning = false;
@@ -169,7 +169,7 @@ async function doScan() {
 
 function syncAutoScan() {
   const b = document.getElementById("autoscan");
-  b.textContent = "auto-scan: " + (autoScan ? "on" : "off");
+  b.textContent = "自动扫描：" + (autoScan ? "开" : "关");
   b.classList.toggle("on", autoScan);
   localStorage.setItem("fx_autoscan", autoScan ? "1" : "0");
   if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }

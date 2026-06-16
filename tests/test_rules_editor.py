@@ -108,7 +108,7 @@ def test_web_dashboard_is_static_shell(tmp_path):
     c = _client(tmp_path)
     r = c.get("/")
     assert r.status_code == 200
-    assert "CRYPTO MARKET SCANNER" in r.text      # TUI 黑客风标题
+    assert "加密市场扫盘器" in r.text             # TUI 黑客风标题（中文）
     assert "loadLatest" in r.text                 # 自动刷新脚本
 
 

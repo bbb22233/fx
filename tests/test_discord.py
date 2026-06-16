@@ -41,7 +41,7 @@ def test_format_symbol_and_subs_and_rules():
 
 def test_dashboard_shell():
     """看板已改为 TUI 黑客风静态 shell（数据由前端 JS 拉 API + 自动刷新/扫描）。"""
-    assert "CRYPTO MARKET SCANNER" in DASHBOARD_HTML
+    assert "加密市场扫盘器" in DASHBOARD_HTML
     assert "loadLatest" in DASHBOARD_HTML and "doScan" in DASHBOARD_HTML
     assert "collapse" in DASHBOARD_HTML        # 前端同币跨所去重
 
