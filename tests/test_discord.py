@@ -13,7 +13,7 @@ from fx.indicators.timeframe import timeframe_seconds
 from fx.output.discord_bot import commands
 from fx.output.discord_bot.commands import CommandRouter
 from fx.output.store import Store
-from fx.output.web.app import _render
+from fx.output.web.dashboard import DASHBOARD_HTML
 from fx.rules.store import RulesStore
 from fx.service import ScanService
 
@@ -39,10 +39,11 @@ def test_format_symbol_and_subs_and_rules():
     assert "high_vol_min" in commands.format_rules({"classification.high_vol_min": 60})
 
 
-def test_render_dashboard():
-    assert "暂无" in _render(None)
-    html = _render({"as_of": "T", "lists": {"top": ["A"], "bottom": [], "squeeze": [], "watch": []}})
-    assert "顶部 (1)" in html and "<li>A</li>" in html
+def test_dashboard_shell():
+    """看板已改为 TUI 黑客风静态 shell（数据由前端 JS 拉 API + 自动刷新/扫描）。"""
+    assert "CRYPTO MARKET SCANNER" in DASHBOARD_HTML
+    assert "loadLatest" in DASHBOARD_HTML and "doScan" in DASHBOARD_HTML
+    assert "collapse" in DASHBOARD_HTML        # 前端同币跨所去重
 
 
 # ----------------------------- 路由（接 service） -----------------------------

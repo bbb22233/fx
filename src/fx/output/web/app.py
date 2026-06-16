@@ -1,7 +1,8 @@
 """FastAPI 看板 + 规则可视化编辑 + JSON API。
 
 ``create_app(service)`` 工厂注入 ScanService；fastapi 懒加载，未安装时本模块
-仍可导入。看板页面极简：读最新结果渲染四张清单表。规则编辑页见 ``editor.py``。
+仍可导入。看板（TUI 黑客风，前端自动刷新/扫描）见 ``dashboard.py``，规则编辑页见 ``editor.py``；
+``/`` 与 ``/rules`` 返回静态 HTML shell，数据全走 JSON API。
 """
 
 from __future__ import annotations
@@ -9,9 +10,7 @@ from __future__ import annotations
 import dataclasses
 
 from ...models import PeriodMetrics, SymbolMetrics
-from ...service import LIST_NAMES
-from ..discord_bot.commands import LIST_LABELS
-from ..serialize import collapse_by_symbol, format_symbol_entry
+from .dashboard import DASHBOARD_HTML
 from .editor import EDITOR_HTML
 
 _OPS = [">", "<", ">=", "<=", "=="]
@@ -80,22 +79,6 @@ def create_app(service):  # pragma: no cover - 需 fastapi
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard():
-        return _render(service.get_latest())
+        return DASHBOARD_HTML
 
     return app
-
-
-def _render(summary) -> str:
-    nav = "<p><a href='/rules'>⚙️ 编辑规则</a></p>"
-    if not summary:
-        return ("<html><meta charset='utf-8'><body>" + nav
-                + "<h2>暂无扫描结果</h2><p>POST /api/rescan 触发一轮扫描。</p></body></html>")
-    metrics = summary.get("metrics", {})
-    blocks = [nav, f"<h2>扫描时间：{summary.get('as_of')}</h2>"]
-    for name in LIST_NAMES:
-        keys = summary.get("lists", {}).get(name, [])
-        entries = collapse_by_symbol(keys, metrics)        # 同币跨所去重
-        label = LIST_LABELS.get(name, name)
-        items = "".join(f"<li>{format_symbol_entry(e)}</li>" for e in entries) or "<li>—</li>"
-        blocks.append(f"<h3>{label} ({len(entries)})</h3><ul>{items}</ul>")
-    return "<html><meta charset='utf-8'><body>" + "".join(blocks) + "</body></html>"

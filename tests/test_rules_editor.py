@@ -103,6 +103,15 @@ def _client(tmp_path):
     return TestClient(create_app(svc))
 
 
+def test_web_dashboard_is_static_shell(tmp_path):
+    """看板 / 返回静态 HTML（不读 store，故 provider=None 也 200）。"""
+    c = _client(tmp_path)
+    r = c.get("/")
+    assert r.status_code == 200
+    assert "CRYPTO MARKET SCANNER" in r.text      # TUI 黑客风标题
+    assert "loadLatest" in r.text                 # 自动刷新脚本
+
+
 def test_web_rules_doc_and_meta(tmp_path):
     c = _client(tmp_path)
     doc = c.get("/api/rules/doc").json()

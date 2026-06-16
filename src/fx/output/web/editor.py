@@ -13,21 +13,34 @@ EDITOR_HTML = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>fx 规则编辑</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 24px; color: #1c1c1c; max-width: 960px; }
-  h1 { font-size: 20px; } h2 { font-size: 16px; margin: 18px 0 8px; }
-  a { color: #2563eb; }
-  .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px 14px; margin: 10px 0; background: #fafafa; }
-  .cond { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px dashed #e3e3e3; }
+  :root { --g: #33ff66; --dim: #1f8a45; --bg: #050805; --panel: #0a120c; --err: #ff4455; }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); }
+  body {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+    margin: 0 auto; padding: 12px; color: var(--g); max-width: 960px; font-size: 14px;
+    text-shadow: 0 0 4px rgba(51,255,102,.35);
+  }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,.18) 3px); }
+  h1 { font-size: 16px; letter-spacing: 1px; } h2 { font-size: 14px; margin: 18px 0 8px; color: var(--dim); }
+  a { color: var(--g); border-bottom: 1px dotted var(--dim); text-decoration: none; }
+  .card { border: 1px solid var(--dim); padding: 12px 14px; margin: 10px 0; background: var(--panel); }
+  .cond { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px dashed var(--dim); }
   .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0; }
-  label.fld { font-size: 12px; color: #555; display: inline-flex; gap: 4px; align-items: center; }
-  select, input { padding: 4px 6px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; }
+  label.fld { font-size: 12px; color: var(--dim); display: inline-flex; gap: 4px; align-items: center; }
+  select, input { padding: 4px 6px; font-size: 13px; font-family: inherit; color: var(--g);
+    background: #000; border: 1px solid var(--dim); }
   input[type=number] { width: 92px; } input.key { width: 110px; } input.label { width: 130px; }
-  button { padding: 5px 10px; font-size: 13px; border: 1px solid #bbb; border-radius: 5px; background: #fff; cursor: pointer; }
-  button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
-  button.del { color: #b91c1c; border-color: #e3b3b3; }
-  .toolbar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #eee; z-index: 5; }
-  #msg { margin-left: 12px; font-size: 13px; }
-  .ok { color: #15803d; } .err { color: #b91c1c; white-space: pre-wrap; }
+  button { padding: 5px 10px; font-size: 13px; font-family: inherit; border: 1px solid var(--g);
+    background: transparent; color: var(--g); cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  button:hover { background: var(--g); color: #000; text-shadow: none; }
+  button.primary { background: var(--g); color: #000; text-shadow: none; }
+  button.del { color: var(--err); border-color: var(--err); }
+  button.del:hover { background: var(--err); color: #000; }
+  .toolbar { position: sticky; top: 0; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--dim); z-index: 10; }
+  #msg { margin-left: 12px; font-size: 13px; color: var(--dim); }
+  .ok { color: var(--g) !important; } .err { color: var(--err) !important; white-space: pre-wrap; }
 </style>
 </head>
 <body>
